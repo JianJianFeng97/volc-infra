@@ -42,6 +42,29 @@ resource "volcengine_vpc" "default" {
   vpc_name    = "Default"
   cidr_block  = "172.31.0.0/16"
   description = "System created default VPC."
+  
+  # 基础标签
+  tags {
+    key   = "Environment"
+    value = "dev"
+  }
+  tags {
+    key   = "ManagedBy"
+    value = "terraform"
+  }
+  tags {
+    key   = "Region"
+    value = "cn-shanghai"
+  }
+  tags {
+    key   = "Repo"
+    value = "JianJianFeng97/volc-infra"
+  }
+  # 自定义新增标签
+  tags {
+    key   = "Owner"
+    value = "JianJianFeng97"
+  }
 }
 
 # -------------------------------------------------------------------
