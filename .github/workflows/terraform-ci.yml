@@ -1,0 +1,68 @@
+name: Terraform CI
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "infra/**"
+      - ".github/workflows/terraform-ci.yml"
+
+jobs:
+  terraform:
+    name: "Terraform ${{ matrix.env }}"
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    strategy:
+      fail-fast: false
+      matrix:
+        env: [dev, prod]
+
+    defaults:
+      run:
+        working-directory: infra/envs/${{ matrix.env }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "~> 1.6.0"
+
+      # Check that all .tf files are canonically formatted.
+      - name: Terraform Format
+        run: terraform fmt -check -recursive
+
+      # Initialise without a real backend so no remote credentials are needed.
+      - name: Terraform Init
+        run: terraform init -backend=false
+
+      # Validate syntax and types – does not require cloud credentials.
+      - name: Terraform Validate
+        run: terraform validate
+
+      # Plan requires cloud credentials (VOLCENGINE_ACCESS_KEY / VOLCENGINE_SECRET_KEY).
+      # This step is optional: it is allowed to fail when credentials are absent.
+      # To enable it, add VOLCENGINE_ACCESS_KEY and VOLCENGINE_SECRET_KEY as
+      # GitHub Actions secrets and uncomment the env block below.
+      - name: Terraform Plan (optional – requires credentials)
+        id: plan
+        continue-on-error: true
+        run: |
+          terraform plan -var="volcengine_access_key=${VOLCENGINE_ACCESS_KEY:-}" \
+                         -var="volcengine_secret_key=${VOLCENGINE_SECRET_KEY:-}" \
+                         -input=false
+        # env:
+        #   VOLCENGINE_ACCESS_KEY: ${{ secrets.VOLCENGINE_ACCESS_KEY }}
+        #   VOLCENGINE_SECRET_KEY: ${{ secrets.VOLCENGINE_SECRET_KEY }}
+
+      - name: Plan result
+        run: |
+          if [ "${{ steps.plan.outcome }}" = "failure" ]; then
+            echo "::warning::terraform plan failed (likely missing credentials). \
+          Add VOLCENGINE_ACCESS_KEY and VOLCENGINE_SECRET_KEY secrets to enable full plan."
+          fi
